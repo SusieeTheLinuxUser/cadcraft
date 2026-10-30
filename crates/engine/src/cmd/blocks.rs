@@ -336,15 +336,19 @@ fn run_wblock(s: &mut Session, p: &Value) -> Result<Value> {
     let path = str_param(p, "path").ok_or_else(|| bad("wblock", "`path` is required"))?.to_string();
     let src = s.doc()?;
     let mut d = cadcraft_doc::Drawing::new_imperial();
+    // The written drawing keeps the source's settings and styles, as AutoCAD's -WBLOCK does: its
+    // units ($INSUNITS, $MEASUREMENT), so a block from a metric drawing is not declared in inches
+    // and scaled on insert, and its defaults (text size, current styles, annotation scales).
+    d.header = src.header.clone();
     d.layers = src.layers.clone();
     d.linetypes = src.linetypes.clone();
     d.text_styles = src.text_styles.clone();
     d.dim_styles = src.dim_styles.clone();
+    d.mleader_styles = src.mleader_styles.clone();
+    d.table_styles = src.table_styles.clone();
+    d.mline_styles = src.mline_styles.clone();
+    d.scales = src.scales.clone();
     d.blocks = src.blocks.clone();
-    // The written drawing keeps the source's units, as AutoCAD's -WBLOCK does: a block written from
-    // a metric drawing is not declared in inches, which would scale it on insert into such a file.
-    d.header.set_i64("INSUNITS", src.header.i64("INSUNITS", 1));
-    d.header.set_i64("MEASUREMENT", src.header.i64("MEASUREMENT", 0));
     // The base point becomes the written drawing's origin, its insertion base: by default 0,0 for
     // objects and the block's base point for a block (`base` is then in block coordinates).
     let base = point_param(p, "base");
