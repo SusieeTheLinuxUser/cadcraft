@@ -7,6 +7,11 @@ use cadcraft_engine::cmd::file::{IoHooks, set_io};
 use cadcraft_engine::doc::Drawing;
 use serde_json::json;
 
+#[path = "support/temp_dir.rs"]
+mod temp_dir;
+
+use temp_dir::TempDir;
+
 /// Writes "INSUNITS;MEASUREMENT" and, on a second line, the settings a metric drawing changes, so
 /// the test can read them from the file that would be saved.
 fn write(d: &Drawing, _path: &str) -> Result<Vec<u8>, String> {
@@ -20,14 +25,15 @@ fn settings(d: &Drawing) -> String {
     format!("{} {} {limmax:?} {} {mleader} {table}", d.header.str("DIMSTYLE", ""), d.header.f64("TEXTSIZE", -1.0), d.scales.len())
 }
 
-/// The file WBLOCK would save: line `n` of what [`write`] wrote.
+/// The file WBLOCK would save: line `n` of what [`write`] wrote. Each call writes into a folder
+/// of its own, so tests running in parallel never read or delete each other's file.
 fn wblock(s: &mut Session, p: serde_json::Value, n: usize) -> String {
-    let path = std::env::temp_dir().join(format!("cadcraft-wblock-units-{}.dxf", std::process::id()));
+    let dir = TempDir::new("wblock-units");
+    let path = dir.path_str("out.dxf");
     let mut p = p;
-    p["path"] = json!(path.to_string_lossy());
+    p["path"] = json!(path);
     s.execute("wblock", &p).unwrap();
     let text = std::fs::read_to_string(&path).unwrap();
-    let _ = std::fs::remove_file(&path);
     text.lines().nth(n).unwrap_or("").to_string()
 }
 
